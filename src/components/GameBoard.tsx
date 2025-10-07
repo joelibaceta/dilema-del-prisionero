@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { GameState, Choice, Round } from '@/lib/types';
 import { SeededRandom, executeStrategy, calculatePayoff, bothPlayersConfirmed, resetPlayerChoices } from '@/lib/game-logic';
 import { generateFeedback } from '@/lib/feedback';
@@ -20,31 +20,7 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
   const [rng] = useState(new SeededRandom(gameState.config.seed));
   const [autoPlayInterval, setAutoPlayInterval] = useState<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    if (gameState.autoPlay && !gameState.gameEnded && gameState.config.mode === 'bot_vs_bot') {
-      const interval = setInterval(() => {
-        playBotVsBotRound();
-      }, gameState.autoPlaySpeed);
-      setAutoPlayInterval(interval);
-      return () => clearInterval(interval);
-    } else if (autoPlayInterval) {
-      clearInterval(autoPlayInterval);
-      setAutoPlayInterval(null);
-    }
-  }, [gameState.autoPlay, gameState.autoPlaySpeed, gameState.gameEnded]);
-
-  const makeChoice = (playerId: string, choice: Choice) => {
-    setGameState(prev => ({
-      ...prev,
-      [playerId === 'player1' ? 'player1' : 'player2']: {
-        ...prev[playerId === 'player1' ? 'player1' : 'player2'],
-        choice,
-        confirmed: true,
-      },
-    }));
-  };
-
-  const playBotVsBotRound = () => {
+  const playBotVsBotRound = useCallback(() => {
     setGameState(prev => {
       if (prev.gameEnded || prev.currentRound > prev.config.rounds) return prev;
 
@@ -109,6 +85,79 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
         autoPlay: gameEnded ? false : prev.autoPlay,
       };
     });
+  }, [rng]);
+
+  const processBotChoice = useCallback((botPlayer: 'player1' | 'player2') => {
+    const player = gameState[botPlayer];
+    const opponent = botPlayer === 'player1' ? gameState.player2 : gameState.player1;
+    
+    if (player.isBot && player.strategy && !player.confirmed) {
+      const result = executeStrategy(
+        player.strategy,
+        player.history,
+        opponent.history,
+        player.grimFired || false,
+        rng,
+        gameState.config.pCoop
+      );
+
+      setGameState(prev => ({
+        ...prev,
+        [botPlayer]: {
+          ...prev[botPlayer],
+          choice: result.choice,
+          confirmed: true,
+          grimFired: result.grimFired,
+        },
+      }));
+    }
+  }, [gameState, rng]);
+
+  useEffect(() => {
+    if (gameState.autoPlay && !gameState.gameEnded && gameState.config.mode === 'bot_vs_bot') {
+      const interval = setInterval(playBotVsBotRound, gameState.autoPlaySpeed);
+      setAutoPlayInterval(interval);
+      return () => {
+        clearInterval(interval);
+        setAutoPlayInterval(null);
+      };
+    } else {
+      if (autoPlayInterval) {
+        clearInterval(autoPlayInterval);
+        setAutoPlayInterval(null);
+      }
+    }
+  }, [gameState.autoPlay, gameState.autoPlaySpeed, gameState.gameEnded, gameState.config.mode, playBotVsBotRound]);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (autoPlayInterval) {
+        clearInterval(autoPlayInterval);
+      }
+    };
+  }, [autoPlayInterval]);
+
+  useEffect(() => {
+    if (gameState.config.mode === 'human_vs_bot') {
+      if (gameState.player1.isBot) {
+        processBotChoice('player1');
+      }
+      if (gameState.player2.isBot) {
+        processBotChoice('player2');
+      }
+    }
+  }, [gameState.currentRound, gameState.player1.confirmed, gameState.player2.confirmed, gameState.config.mode, processBotChoice]);
+
+  const makeChoice = (playerId: string, choice: Choice) => {
+    setGameState(prev => ({
+      ...prev,
+      [playerId === 'player1' ? 'player1' : 'player2']: {
+        ...prev[playerId === 'player1' ? 'player1' : 'player2'],
+        choice,
+        confirmed: true,
+      },
+    }));
   };
 
   const revealChoices = () => {
@@ -161,43 +210,6 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
       isRevealed: false,
     }));
   };
-
-  const processBotChoice = (botPlayer: 'player1' | 'player2') => {
-    const player = gameState[botPlayer];
-    const opponent = botPlayer === 'player1' ? gameState.player2 : gameState.player1;
-    
-    if (player.isBot && player.strategy && !player.confirmed) {
-      const result = executeStrategy(
-        player.strategy,
-        player.history,
-        opponent.history,
-        player.grimFired || false,
-        rng,
-        gameState.config.pCoop
-      );
-
-      setGameState(prev => ({
-        ...prev,
-        [botPlayer]: {
-          ...prev[botPlayer],
-          choice: result.choice,
-          confirmed: true,
-          grimFired: result.grimFired,
-        },
-      }));
-    }
-  };
-
-  useEffect(() => {
-    if (gameState.config.mode === 'human_vs_bot') {
-      if (gameState.player1.isBot) {
-        processBotChoice('player1');
-      }
-      if (gameState.player2.isBot) {
-        processBotChoice('player2');
-      }
-    }
-  }, [gameState.currentRound, gameState.player1.confirmed, gameState.player2.confirmed]);
 
   const toggleAutoPlay = () => {
     setGameState(prev => ({
