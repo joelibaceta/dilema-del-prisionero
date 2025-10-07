@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { CaretDown } from '@phosphor-icons/react';
 
 interface ConfigPanelProps {
   onStartGame: (config: GameConfig) => void;
@@ -20,11 +22,12 @@ export default function ConfigPanel({ onStartGame }: ConfigPanelProps) {
   const [initialCoins, setInitialCoins] = useState(1000);
   const [seed, setSeed] = useState(12345);
   const [pCoop, setPCoop] = useState(0.5);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   const [player1Name, setPlayer1Name] = useState('Jugador A');
   const [player2Name, setPlayer2Name] = useState('Jugador B');
-  const [player1Strategy, setPlayer1Strategy] = useState<BotStrategy>('tit_for_tat');
-  const [player2Strategy, setPlayer2Strategy] = useState<BotStrategy>('always_cooperate');
+  const [player1Strategy, setPlayer1Strategy] = useState<BotStrategy>('random');
+  const [player2Strategy, setPlayer2Strategy] = useState<BotStrategy>('random');
   
   const [payoffMatrix, setPayoffMatrix] = useState<PayoffMatrix>(DEFAULT_PAYOFF_MATRIX);
 
@@ -168,134 +171,145 @@ export default function ConfigPanel({ onStartGame }: ConfigPanelProps) {
 
         <Separator />
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="rounds">Número de Rondas</Label>
-            <Input
-              id="rounds"
-              type="number"
-              min="1"
-              max="100"
-              value={rounds}
-              onChange={(e) => setRounds(parseInt(e.target.value) || 10)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="initial-coins">Monedas Iniciales</Label>
-            <Input
-              id="initial-coins"
-              type="number"
-              min="0"
-              value={initialCoins}
-              onChange={(e) => setInitialCoins(parseInt(e.target.value) || 1000)}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="seed">Semilla RNG</Label>
-            <Input
-              id="seed"
-              type="number"
-              value={seed}
-              onChange={(e) => setSeed(parseInt(e.target.value) || 12345)}
-            />
-          </div>
-          <div>
-            <Label>Probabilidad de Cooperar (Random)</Label>
-            <div className="px-2">
-              <Slider
-                value={[pCoop]}
-                onValueChange={(value) => setPCoop(value[0])}
-                max={1}
-                min={0}
-                step={0.1}
-                className="mt-2"
-              />
-              <div className="text-sm text-muted-foreground mt-1 text-center">
-                {Math.round(pCoop * 100)}%
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <Label>Matriz de Pagos</Label>
-          <div className="grid grid-cols-2 gap-4 mt-2">
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Cooperar vs Cooperar (C,C)</div>
-              <div className="flex gap-2">
+        <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full justify-between">
+              Configuración Avanzada
+              <CaretDown className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
+          
+          <CollapsibleContent className="space-y-6 mt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="rounds">Número de Rondas</Label>
                 <Input
+                  id="rounds"
                   type="number"
-                  value={payoffMatrix.CC[0]}
-                  onChange={(e) => updatePayoff('CC', 0, e.target.value)}
-                  placeholder="Jugador A"
+                  min="1"
+                  max="100"
+                  value={rounds}
+                  onChange={(e) => setRounds(parseInt(e.target.value) || 10)}
                 />
+              </div>
+              <div>
+                <Label htmlFor="initial-coins">Monedas Iniciales</Label>
                 <Input
+                  id="initial-coins"
                   type="number"
-                  value={payoffMatrix.CC[1]}
-                  onChange={(e) => updatePayoff('CC', 1, e.target.value)}
-                  placeholder="Jugador B"
+                  min="0"
+                  value={initialCoins}
+                  onChange={(e) => setInitialCoins(parseInt(e.target.value) || 1000)}
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Cooperar vs Traicionar (C,T)</div>
-              <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="seed">Semilla RNG</Label>
                 <Input
+                  id="seed"
                   type="number"
-                  value={payoffMatrix.CT[0]}
-                  onChange={(e) => updatePayoff('CT', 0, e.target.value)}
-                  placeholder="Jugador A"
+                  value={seed}
+                  onChange={(e) => setSeed(parseInt(e.target.value) || 12345)}
                 />
-                <Input
-                  type="number"
-                  value={payoffMatrix.CT[1]}
-                  onChange={(e) => updatePayoff('CT', 1, e.target.value)}
-                  placeholder="Jugador B"
-                />
+              </div>
+              <div>
+                <Label>Probabilidad de Cooperar (Random)</Label>
+                <div className="px-2">
+                  <Slider
+                    value={[pCoop]}
+                    onValueChange={(value) => setPCoop(value[0])}
+                    max={1}
+                    min={0}
+                    step={0.1}
+                    className="mt-2"
+                  />
+                  <div className="text-sm text-muted-foreground mt-1 text-center">
+                    {Math.round(pCoop * 100)}%
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Traicionar vs Cooperar (T,C)</div>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  value={payoffMatrix.TC[0]}
-                  onChange={(e) => updatePayoff('TC', 0, e.target.value)}
-                  placeholder="Jugador A"
-                />
-                <Input
-                  type="number"
-                  value={payoffMatrix.TC[1]}
-                  onChange={(e) => updatePayoff('TC', 1, e.target.value)}
-                  placeholder="Jugador B"
-                />
-              </div>
-            </div>
+            <div>
+              <Label>Matriz de Pagos</Label>
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Cooperar vs Cooperar (C,C)</div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      value={payoffMatrix.CC[0]}
+                      onChange={(e) => updatePayoff('CC', 0, e.target.value)}
+                      placeholder="Jugador A"
+                    />
+                    <Input
+                      type="number"
+                      value={payoffMatrix.CC[1]}
+                      onChange={(e) => updatePayoff('CC', 1, e.target.value)}
+                      placeholder="Jugador B"
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Traicionar vs Traicionar (T,T)</div>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  value={payoffMatrix.TT[0]}
-                  onChange={(e) => updatePayoff('TT', 0, e.target.value)}
-                  placeholder="Jugador A"
-                />
-                <Input
-                  type="number"
-                  value={payoffMatrix.TT[1]}
-                  onChange={(e) => updatePayoff('TT', 1, e.target.value)}
-                  placeholder="Jugador B"
-                />
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Cooperar vs Traicionar (C,T)</div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      value={payoffMatrix.CT[0]}
+                      onChange={(e) => updatePayoff('CT', 0, e.target.value)}
+                      placeholder="Jugador A"
+                    />
+                    <Input
+                      type="number"
+                      value={payoffMatrix.CT[1]}
+                      onChange={(e) => updatePayoff('CT', 1, e.target.value)}
+                      placeholder="Jugador B"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Traicionar vs Cooperar (T,C)</div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      value={payoffMatrix.TC[0]}
+                      onChange={(e) => updatePayoff('TC', 0, e.target.value)}
+                      placeholder="Jugador A"
+                    />
+                    <Input
+                      type="number"
+                      value={payoffMatrix.TC[1]}
+                      onChange={(e) => updatePayoff('TC', 1, e.target.value)}
+                      placeholder="Jugador B"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Traicionar vs Traicionar (T,T)</div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      value={payoffMatrix.TT[0]}
+                      onChange={(e) => updatePayoff('TT', 0, e.target.value)}
+                      placeholder="Jugador A"
+                    />
+                    <Input
+                      type="number"
+                      value={payoffMatrix.TT[1]}
+                      onChange={(e) => updatePayoff('TT', 1, e.target.value)}
+                      placeholder="Jugador B"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         <Button onClick={handleStart} className="w-full" size="lg">
           Iniciar Partida
