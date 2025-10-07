@@ -19,6 +19,7 @@ interface GameBoardProps {
 export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
   const [rng] = useState(new SeededRandom(gameState.config.seed));
   const [autoPlayInterval, setAutoPlayInterval] = useState<NodeJS.Timeout | null>(null);
+  const [revealTimeout, setRevealTimeout] = useState<NodeJS.Timeout | null>(null);
 
   const playBotVsBotRound = useCallback(() => {
     setGameState(prev => {
@@ -113,6 +114,22 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
     }
   }, [gameState, rng]);
 
+  // Auto-reveal after both players confirm their choices
+  useEffect(() => {
+    if (bothPlayersConfirmed(gameState.player1, gameState.player2) && !gameState.isRevealed && gameState.config.mode !== 'bot_vs_bot') {
+      const timeout = setTimeout(() => {
+        revealChoices();
+      }, 2000); // 2 second delay
+      
+      setRevealTimeout(timeout);
+      
+      return () => {
+        clearTimeout(timeout);
+        setRevealTimeout(null);
+      };
+    }
+  }, [gameState.player1.confirmed, gameState.player2.confirmed, gameState.isRevealed, gameState.config.mode]);
+
   useEffect(() => {
     if (gameState.autoPlay && !gameState.gameEnded && gameState.config.mode === 'bot_vs_bot') {
       const interval = setInterval(playBotVsBotRound, gameState.autoPlaySpeed);
@@ -135,8 +152,11 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
       if (autoPlayInterval) {
         clearInterval(autoPlayInterval);
       }
+      if (revealTimeout) {
+        clearTimeout(revealTimeout);
+      }
     };
-  }, [autoPlayInterval]);
+  }, [autoPlayInterval, revealTimeout]);
 
   useEffect(() => {
     if (gameState.config.mode === 'human_vs_bot') {
@@ -202,6 +222,12 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
   const nextRound = () => {
     if (gameState.gameEnded) return;
 
+    // Clear any pending reveal timeout
+    if (revealTimeout) {
+      clearTimeout(revealTimeout);
+      setRevealTimeout(null);
+    }
+
     setGameState(prev => ({
       ...prev,
       currentRound: prev.currentRound + 1,
@@ -225,7 +251,6 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
     }));
   };
 
-  const isWaitingForReveal = bothPlayersConfirmed(gameState.player1, gameState.player2) && !gameState.isRevealed;
   const canProceedToNext = gameState.isRevealed && !gameState.gameEnded;
 
   if (gameState.gameEnded) {
@@ -318,10 +343,10 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
             </div>
           ) : (
             <div className="text-center space-y-4">
-              {isWaitingForReveal && (
-                <Button onClick={revealChoices} size="lg" className="bg-accent text-accent-foreground">
-                  Revelar Jugadas
-                </Button>
+              {bothPlayersConfirmed(gameState.player1, gameState.player2) && !gameState.isRevealed && (
+                <div className="text-lg font-semibold p-4 bg-secondary rounded-lg">
+                  Revelando jugadas en unos segundos...
+                </div>
               )}
               
               {canProceedToNext && (
