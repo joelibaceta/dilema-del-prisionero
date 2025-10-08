@@ -20,6 +20,12 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
   const [rng] = useState(new SeededRandom(gameState.config.seed));
   const [autoPlayInterval, setAutoPlayInterval] = useState<NodeJS.Timeout | null>(null);
   const [revealTimeout, setRevealTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [nextRoundTimeout, setNextRoundTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [scoreAnimations, setScoreAnimations] = useState<{player1: boolean, player2: boolean}>({
+    player1: false,
+    player2: false
+  });
 
   const playBotVsBotRound = useCallback(() => {
     setGameState(prev => {
@@ -155,8 +161,11 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
       if (revealTimeout) {
         clearTimeout(revealTimeout);
       }
+      if (nextRoundTimeout) {
+        clearTimeout(nextRoundTimeout);
+      }
     };
-  }, [autoPlayInterval, revealTimeout]);
+  }, [autoPlayInterval, revealTimeout, nextRoundTimeout]);
 
   useEffect(() => {
     if (gameState.config.mode === 'human_vs_bot') {
@@ -217,16 +226,49 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
       gameEnded,
       isRevealed: true,
     }));
+
+    // Activar animaciones de puntuación
+    setScoreAnimations({ player1: true, player2: true });
+    setTimeout(() => setScoreAnimations({ player1: false, player2: false }), 600);
+
+    // Solo iniciar cuenta regresiva si no es el final del juego y no es modo bot vs bot
+    if (!gameEnded && gameState.config.mode !== 'bot_vs_bot') {
+      startNextRoundCountdown();
+    }
+  };
+
+  const startNextRoundCountdown = () => {
+    setCountdown(3);
+    
+    const countdownInterval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(countdownInterval);
+          setTimeout(() => {
+            setCountdown(null);
+            nextRound();
+          }, 1000); // Pausa de 1 segundo después del 1
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const nextRound = () => {
     if (gameState.gameEnded) return;
 
-    // Clear any pending reveal timeout
+    // Clear any pending timeouts
     if (revealTimeout) {
       clearTimeout(revealTimeout);
       setRevealTimeout(null);
     }
+    if (nextRoundTimeout) {
+      clearTimeout(nextRoundTimeout);
+      setNextRoundTimeout(null);
+    }
+
+    setCountdown(null);
 
     setGameState(prev => ({
       ...prev,
@@ -251,8 +293,6 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
     }));
   };
 
-  const canProceedToNext = gameState.isRevealed && !gameState.gameEnded;
-
   if (gameState.gameEnded) {
     const feedback = generateFeedback(gameState);
     return <FeedbackPanel feedback={feedback} gameState={gameState} />;
@@ -262,19 +302,19 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
     <div className="space-y-6">
       {/* Puntuaciones */}
       <div className="grid grid-cols-2 gap-6">
-        <Card>
+        <Card className={scoreAnimations.player1 ? 'score-glow' : ''}>
           <CardHeader className="text-center">
             <CardTitle>Puntaje {gameState.player1.name}</CardTitle>
-            <div className="text-3xl font-bold text-primary flex items-center justify-center gap-2">
+            <div className={`text-3xl font-bold text-primary flex items-center justify-center gap-2 ${scoreAnimations.player1 ? 'coin-animation' : ''}`}>
               🪙 {gameState.player1.score}
             </div>
           </CardHeader>
         </Card>
         
-        <Card>
+        <Card className={scoreAnimations.player2 ? 'score-glow' : ''}>
           <CardHeader className="text-center">
             <CardTitle>Puntaje {gameState.player2.name}</CardTitle>
-            <div className="text-3xl font-bold text-primary flex items-center justify-center gap-2">
+            <div className={`text-3xl font-bold text-primary flex items-center justify-center gap-2 ${scoreAnimations.player2 ? 'coin-animation' : ''}`}>
               🪙 {gameState.player2.score}
             </div>
           </CardHeader>
@@ -348,19 +388,26 @@ export default function GameBoard({ gameState, setGameState }: GameBoardProps) {
                   Revelando jugadas en unos segundos...
                 </div>
               )}
-              
-              {canProceedToNext && (
-                <Button onClick={nextRound} size="lg">
-                  Siguiente Ronda
-                </Button>
-              )}
 
               {gameState.isRevealed && (
-                <div className="text-lg font-semibold p-4 bg-secondary rounded-lg">
-                  Resultado: {gameState.player1.choice === 'C' ? '🤝' : '⚡'} vs {gameState.player2.choice === 'C' ? '🤝' : '⚡'}
-                  {gameState.player1.choice === 'C' && gameState.player2.choice === 'C' && ' - Cooperación mutua'}
-                  {gameState.player1.choice === 'T' && gameState.player2.choice === 'T' && ' - Traición mutua'}
-                  {gameState.player1.choice !== gameState.player2.choice && ' - Explotación'}
+                <div className="space-y-4">
+                  <div className="text-lg font-semibold p-4 bg-secondary rounded-lg">
+                    Resultado: {gameState.player1.choice === 'C' ? '🤝' : '⚡'} vs {gameState.player2.choice === 'C' ? '🤝' : '⚡'}
+                    {gameState.player1.choice === 'C' && gameState.player2.choice === 'C' && ' - Cooperación mutua'}
+                    {gameState.player1.choice === 'T' && gameState.player2.choice === 'T' && ' - Traición mutua'}
+                    {gameState.player1.choice !== gameState.player2.choice && ' - Explotación'}
+                  </div>
+                  
+                  {countdown !== null && (
+                    <div className="text-center">
+                      <div className="text-4xl font-bold countdown-animation mb-2">
+                        {countdown}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Siguiente ronda en...
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
